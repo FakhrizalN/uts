@@ -1,0 +1,20 @@
+# Publisher simulator for testing (BONUS)
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install dependencies
+RUN pip install --no-cache-dir requests schedule
+
+# Create non-root user
+RUN adduser --disabled-password --gecos '' publisher && \
+    chown -R publisher:publisher /app
+
+USER publisher
+
+# Copy publisher script
+COPY --chown=publisher:publisher publisher.py .
+
+ENV PYTHONUNBUFFERED=1
+
+CMD ["python", "publisher.py"]
