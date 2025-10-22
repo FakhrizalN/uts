@@ -74,12 +74,15 @@ def create_app(consumer: Consumer, dedup_store: DedupStore, start_time: datetime
                 raise HTTPException(status_code=503, detail="Service not ready: consumer not initialized")
 
             batch = events if isinstance(events, list) else [events]
+            event_objs = []
             for ev in batch:
-                await consumer.queue.put(ev)
+                event_obj = Event(**ev)  # <-- PARSE DI SINI
+                await consumer.queue.put(event_obj)
+                event_objs.append(event_obj)
 
-            logger.info(f"Queued {len(batch)} events for processing")
+            logger.info(f"Queued {len(event_objs)} events for processing")
             
-            return {"status": "queued", "queued_count": len(batch)}
+            return {"status": "queued", "queued_count": len(event_objs)}
             
         except HTTPException:
             raise
