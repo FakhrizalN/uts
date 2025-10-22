@@ -92,6 +92,7 @@ def create_app(consumer: Consumer, dedup_store: DedupStore, start_time: datetime
     
     @app.get("/events", response_model=EventsResponse, tags=["Events"])
     async def get_events(
+        request: Request, 
         topic: Optional[str] = Query(None, description="Filter by topic"),
         limit: int = Query(100, ge=1, le=1000, description="Maximum events to return")
     ):
@@ -106,6 +107,10 @@ def create_app(consumer: Consumer, dedup_store: DedupStore, start_time: datetime
             EventsResponse with list of processed events
         """
         try:
+            dedup_store = getattr(request.app.state, "dedup_store", None)
+            if dedup_store is None:
+                raise HTTPException(status_code=503, detail="Service not ready: dedup_store not initialized")
+            
             events = await asyncio.to_thread(
                 dedup_store.get_events,
                 topic=topic,
@@ -119,19 +124,16 @@ def create_app(consumer: Consumer, dedup_store: DedupStore, start_time: datetime
             )
             
         except Exception as e:
-            logger.error(f"Error in get_events endpoint: {e}", exc_info=True)
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to retrieve events: {str(e)}"
-            )
+            logger.error("Error in get_events endpoint: %s", e, exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to retrieve events: {e}")
     
-    @app.get("/stats", response_model=StatsResponse, tags=["Monitoring"])
-    async def get_stats():
+    @app.get("/stats", tags=["Monitoring"])
+    async def get_stats(request: Request):
         """
         Get aggregator statistics and metrics.
         
         Returns:
-            StatsResponse with:
+            JSON response with:
             - received: Total events received
             - unique_processed: Unique events processed
             - duplicate_dropped: Duplicate events dropped
@@ -140,32 +142,17 @@ def create_app(consumer: Consumer, dedup_store: DedupStore, start_time: datetime
             - started_at: Service start timestamp
         """
         try:
-            # Get consumer stats
-            consumer_stats = consumer.get_stats()
+            dedup_store = getattr(request.app.state, "dedup_store", None)
+            if dedup_store is None:
+                raise HTTPException(status_code=503, detail="Service not ready: dedup_store not initialized")
             
-            # Get dedup store stats
-            unique_processed, topics = await asyncio.to_thread(
-                dedup_store.get_stats
-            )
+            stats = dedup_store.get_stats()
             
-            # Calculate uptime
-            uptime = (datetime.utcnow() - start_time).total_seconds()
-            
-            return StatsResponse(
-                received=consumer_stats['received'],
-                unique_processed=unique_processed,
-                duplicate_dropped=consumer_stats['duplicate_dropped'],
-                topics=topics,
-                uptime_seconds=uptime,
-                started_at=start_time.isoformat() + 'Z'
-            )
+            return stats
             
         except Exception as e:
-            logger.error(f"Error in stats endpoint: {e}", exc_info=True)
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to retrieve stats: {str(e)}"
-            )
+            logger.error("Error in get_stats endpoint: %s", e, exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to retrieve stats: {e}")
     
     @app.get("/health", response_model=HealthResponse, tags=["Monitoring"])
     async def health_check():
