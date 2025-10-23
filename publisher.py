@@ -1,146 +1,76 @@
-"""
-Publisher simulator for testing (BONUS component for Docker Compose).
-Simulates multiple publishers sending events with configurable duplicate rate.
-"""
-import os
-import time
-import random
+import asyncio
+import aiohttp
 import uuid
-import requests
-from datetime import datetime
-import logging
+import random
+from datetime import datetime, timezone
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+API_URL = "http://aggregator:8080/publish"
+TOPICS = ["user-activity", "system-log", "transaction", "security-event", "performance-metric"]
+SOURCES = ["raspberry-pi", "iot-hub", "mobile-app"]
 
-# Configuration from environment
-AGGREGATOR_URL = os.getenv("AGGREGATOR_URL", "http://localhost:8080")
-PUBLISH_INTERVAL = float(os.getenv("PUBLISH_INTERVAL", "1"))
-DUPLICATE_RATE = float(os.getenv("DUPLICATE_RATE", "0.20"))
+TOTAL_EVENTS = 5000
+DUPLICATION_RATE = 0.2
+CONCURRENCY_LIMIT = 100 
 
-# Topics to use
-TOPICS = [
-    "user-activity",
-    "system-log",
-    "transaction",
-    "security-event",
-    "performance-metric"
-]
-
-# Sources to simulate
-SOURCES = [
-    "web-app",
-    "mobile-app",
-    "backend-api",
-    "cron-job",
-    "monitoring"
-]
-
-# Cache for creating duplicates
-event_cache = []
-CACHE_SIZE = 50
-
-
-def generate_event():
-    """Generate a random event"""
+def generate_event(topic=None, source=None):
     return {
-        "topic": random.choice(TOPICS),
-        "event_id": f"evt-{uuid.uuid4().hex[:16]}",
-        "timestamp": datetime.utcnow().isoformat() + 'Z',
-        "source": random.choice(SOURCES),
+        "topic": topic or random.choice(TOPICS),
+        "event_id": str(uuid.uuid4()),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "source": source or random.choice(SOURCES),
         "payload": {
-            "session_id": f"session-{random.randint(1000, 9999)}",
-            "user_id": f"user-{random.randint(1, 100)}",
-            "action": random.choice(["create", "read", "update", "delete"]),
-            "status": random.choice(["success", "failure", "pending"]),
-            "duration_ms": random.randint(10, 1000),
-            "data": f"sample-data-{random.randint(1, 1000)}"
+            "value": random.randint(0, 100),
+            "status": random.choice(["ok", "warn", "error"])
         }
     }
 
-
-def should_send_duplicate():
-    """Determine if we should send a duplicate based on rate"""
-    return random.random() < DUPLICATE_RATE
-
-
-def publish_events():
-    """Publish events to aggregator"""
-    try:
-        # Determine if this batch should include duplicates
-        if event_cache and should_send_duplicate():
-            # Send a duplicate from cache
-            event = random.choice(event_cache)
-            logger.info(f"Publishing DUPLICATE event: {event['event_id']}")
-        else:
-            # Send new event
-            event = generate_event()
-            logger.info(f"Publishing NEW event: {event['event_id']}")
-            
-            # Add to cache for future duplicates
-            event_cache.append(event)
-            if len(event_cache) > CACHE_SIZE:
-                event_cache.pop(0)
-        
-        # Send to aggregator
-        response = requests.post(
-            f"{AGGREGATOR_URL}/publish",
-            json=event,
-            timeout=5
-        )
-        
-        if response.status_code == 200:
-            logger.info(f"Event published successfully: {response.json()}")
-        else:
-            logger.error(f"Failed to publish event: {response.status_code} - {response.text}")
-            
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Error publishing event: {e}")
-    except Exception as e:
-        logger.error(f"Unexpected error: {e}")
-
-
-def main():
-    """Main publisher loop"""
-    logger.info("=" * 60)
-    logger.info("UTS Publisher Simulator Started")
-    logger.info(f"Aggregator URL: {AGGREGATOR_URL}")
-    logger.info(f"Publish Interval: {PUBLISH_INTERVAL}s")
-    logger.info(f"Duplicate Rate: {DUPLICATE_RATE * 100}%")
-    logger.info("=" * 60)
-    
-    # Wait for aggregator to be ready
-    logger.info("Waiting for aggregator to be ready...")
-    for i in range(30):
+async def send_event(session, event, sem, idx=None):
+    async with sem:
         try:
-            response = requests.get(f"{AGGREGATOR_URL}/health", timeout=2)
-            if response.status_code == 200:
-                logger.info("Aggregator is ready!")
-                break
-        except:
-            pass
-        time.sleep(2)
-    else:
-        logger.warning("Aggregator not ready after 60s, proceeding anyway...")
-    
-    # Main publishing loop
-    event_count = 0
-    try:
-        while True:
-            event_count += 1
-            logger.info(f"\n--- Event #{event_count} ---")
-            publish_events()
-            time.sleep(PUBLISH_INTERVAL)
-            
-    except KeyboardInterrupt:
-        logger.info("\nPublisher stopped by user")
-    except Exception as e:
-        logger.error(f"Publisher error: {e}")
+            async with session.post(API_URL, json=event) as resp:
+                status = resp.status
+                if idx is not None:
+                    print(f"[SEND] #{idx+1} event_id={event['event_id']} topic={event['topic']} status={status}")
+                if status == 200:
+                    return "ok"
+                elif status == 409:
+                    return "duplicate"
+                else:
+                    return f"error-{status}"
+        except Exception as e:
+            print(f"[ERROR] event_id={event['event_id']} error={e}")
+            return f"fail-{e}"
 
+async def wait_for_aggregator(url, timeout=60):
+    for _ in range(timeout):
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as resp:
+                    if resp.status == 200:
+                        print("Aggregator is ready!")
+                        return
+        except Exception:
+            pass
+        print("Waiting for aggregator to be ready...")
+        await asyncio.sleep(1)
+    print("Aggregator not ready after waiting, proceeding anyway...")
+
+async def main():
+    await wait_for_aggregator("http://aggregator:8080/health")
+
+    sem = asyncio.Semaphore(CONCURRENCY_LIMIT)
+
+    events = [generate_event() for _ in range(TOTAL_EVENTS)]
+    duplicates = random.sample(events, int(TOTAL_EVENTS * DUPLICATION_RATE))
+    all_events = events + duplicates
+    random.shuffle(all_events)
+
+    print(f"Sending {len(all_events)} events ({TOTAL_EVENTS} unique + {len(duplicates)} duplicates)...")
+
+    async with aiohttp.ClientSession() as session:
+        results = await asyncio.gather(
+            *(send_event(session, event, sem, idx) for idx, event in enumerate(all_events))
+        )
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

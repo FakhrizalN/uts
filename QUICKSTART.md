@@ -37,30 +37,6 @@ python -m src.main
 # 3. Akses di http://localhost:8080
 ```
 
-## 📋 Checklist UTS
-
-### ✅ Requirement Wajib
-
-- [x] **Bahasa**: Python 3.11
-- [x] **Framework**: FastAPI + asyncio
-- [x] **Idempotent Consumer**: Implemented dengan dedup store
-- [x] **Deduplication**: SQLite dengan UNIQUE constraint
-- [x] **At-least-once Delivery**: Retry-safe dengan idempotency
-- [x] **Persistent Storage**: SQLite WAL mode
-- [x] **Docker**: Dockerfile dengan non-root user
-- [x] **Unit Tests**: 42 tests (exceeds 5-10 requirement)
-- [x] **API Endpoints**: /publish, /events, /stats, /health
-- [x] **Scale Test**: 5000+ events dengan 20% duplikasi
-- [x] **Laporan**: report.md dengan analisis Bab 1-7
-
-### 🎁 BONUS
-
-- [x] **Docker Compose**: Multi-service orchestration
-- [x] **Publisher Simulator**: Automated testing
-- [x] **Comprehensive Tests**: 42 tests dengan coverage
-- [x] **Performance Benchmarks**: Throughput, latency tests
-- [x] **Documentation**: README, CONTRIBUTING, comments
-
 ## 🧪 Testing
 
 ### Run Tests
@@ -73,15 +49,6 @@ pytest tests/ --cov=src --cov-report=html
 
 # Manual testing
 python test_manual.py
-```
-
-### Expected Results
-```
-✓ 42 tests passed
-✓ Throughput: ~1190 events/s
-✓ Duplicate detection: 100%
-✓ All API endpoints working
-```
 
 ## 📊 Demo Scenarios
 
@@ -132,18 +99,6 @@ curl -X POST http://localhost:8080/publish -H "Content-Type: application/json" \
 curl http://localhost:8080/stats
 ```
 
-## 📁 File Penting
-
-| File | Deskripsi |
-|------|-----------|
-| `README.md` | Dokumentasi lengkap sistem |
-| `report.md` | Laporan teori (Bab 1-7) dan implementasi |
-| `src/main.py` | Entry point aplikasi |
-| `Dockerfile` | Docker image definition |
-| `docker-compose.yml` | Multi-service orchestration |
-| `requirements.txt` | Python dependencies |
-| `tests/` | Unit tests (42 tests) |
-
 ## 🎥 Video Demo
 
 Untuk membuat video demo (5-8 menit), cover:
@@ -175,77 +130,3 @@ Untuk membuat video demo (5-8 menit), cover:
    - Show diagram
    - Mention key design decisions
 
-## 📦 Deliverables Checklist
-
-Untuk submit, pastikan repository berisi:
-
-- [x] `README.md` - Dokumentasi cara run
-- [x] `report.md` - Laporan lengkap dengan teori
-- [x] `src/` - Source code
-- [x] `tests/` - Unit tests
-- [x] `Dockerfile` - Docker image
-- [x] `docker-compose.yml` - Multi-service (BONUS)
-- [x] `requirements.txt` - Dependencies
-- [x] `.gitignore` - Exclude unnecessary files
-- [ ] Video demo (upload ke YouTube, tambahkan link di README)
-
-## 🔗 Next Steps
-
-1. **Sebelum Submit**:
-   - Run all tests: `pytest tests/ -v`
-   - Build Docker: `docker build -t uts-aggregator .`
-   - Test Docker run: `docker run -p 8080:8080 uts-aggregator`
-   - Update nama/NIM di report.md
-   - Record video demo
-   - Upload video ke YouTube (public)
-   - Add video link to README.md
-
-2. **Submit**:
-   - Push ke GitHub
-   - Submit link GitHub + link video
-   - Submit report.pdf (atau report.md)
-
-## ❓ Troubleshooting
-
-### Issue: "Module not found"
-```bash
-# Pastikan di root directory
-cd d:\Tugas Sem 7\Sister\uts
-
-# Run dengan module syntax
-python -m src.main
-```
-
-### Issue: "Port 8080 already in use"
-```bash
-# Windows: cari process
-netstat -ano | findstr :8080
-
-# Kill process atau ganti port di config.py
-```
-
-### Issue: Docker build gagal
-```bash
-# Clean cache
-docker system prune -a
-
-# Rebuild
-docker build --no-cache -t uts-aggregator .
-```
-
-## 📧 Support
-
-Jika ada pertanyaan:
-1. Check dokumentasi (README, report, code comments)
-2. Review test files untuk contoh usage
-3. Run `python test_manual.py` untuk test interaktif
-
----
-
-**Good luck! 🎓**
-
-Proyek ini sudah memenuhi semua requirement UTS + BONUS. Tinggal:
-1. Update nama/NIM
-2. Test semua fitur
-3. Record video demo
-4. Submit!

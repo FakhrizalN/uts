@@ -16,7 +16,7 @@ from .dedup_store import DedupStore
 from .consumer import Consumer
 from .api import create_app
 
-# Configure logging
+
 logging.basicConfig(
     level=getattr(logging, Config.LOG_LEVEL),
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -41,18 +41,18 @@ class Application:
         """Initialize all components"""
         logger.info("Starting UTS Log Aggregator...")
         
-        # Ensure data directory exists
+        
         Config.ensure_data_dir()
         
-        # Initialize dedup store
+        
         self.dedup_store = DedupStore(Config.DB_PATH)
         logger.info(f"Dedup store initialized at {Config.DB_PATH}")
         
-        # Initialize queue
+        
         self.queue = asyncio.Queue(maxsize=Config.QUEUE_MAX_SIZE)
         logger.info(f"Event queue initialized (max size: {Config.QUEUE_MAX_SIZE})")
         
-        # Initialize and start consumer
+        
         self.consumer = Consumer(
             queue=self.queue,
             dedup_store=self.dedup_store,
@@ -67,24 +67,28 @@ class Application:
         """Cleanup all components"""
         logger.info("Shutting down UTS Log Aggregator...")
         
-        # Stop consumer gracefully
+        
         if self.consumer:
             await self.consumer.stop()
+        
+        # Close database connection
+        if self.dedup_store:
+            self.dedup_store.close()
         
         logger.info("Application shutdown complete")
 
 
-# Global application instance
+
 app_instance = Application()
 
 
 @asynccontextmanager
 async def lifespan(app):
     """FastAPI lifespan context manager"""
-    # Startup
+    
     await app_instance.startup()
 
-    # attach initialized components so endpoints can access them
+    
     app.state.consumer = app_instance.consumer
     app.state.dedup_store = app_instance.dedup_store
     app.state.queue = app_instance.queue
@@ -93,7 +97,7 @@ async def lifespan(app):
     try:
         yield
     finally:
-        # Shutdown
+        
         await app_instance.shutdown()
 
 
@@ -115,10 +119,10 @@ def main():
     logger.info("Pub-Sub with Idempotent Consumer & Deduplication")
     logger.info("=" * 60)
     
-    # Create FastAPI app
+    
     app = create_fastapi_app()
     
-    # Setup signal handlers for graceful shutdown
+    
     def signal_handler(signum, frame):
         logger.info(f"Received signal {signum}, initiating graceful shutdown...")
         sys.exit(0)
@@ -126,7 +130,7 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     
-    # Run uvicorn server
+    
     uvicorn.run(
         app,
         host=Config.HOST,

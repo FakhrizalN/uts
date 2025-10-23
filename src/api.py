@@ -69,21 +69,30 @@ def create_app(consumer: Consumer, dedup_store: DedupStore, start_time: datetime
         """
         try:
             consumer = getattr(request.app.state, "consumer", None)
-            if consumer is None:
-                # service belum siap
-                raise HTTPException(status_code=503, detail="Service not ready: consumer not initialized")
+            dedup_store = getattr(request.app.state, "dedup_store", None)
+            if consumer is None or dedup_store is None:
+                raise HTTPException(status_code=503, detail="Service not ready")
 
             batch = events if isinstance(events, list) else [events]
             event_objs = []
+            duplicate_count = 0
             for ev in batch:
-                event_obj = Event(**ev)  # <-- PARSE DI SINI
+                event_obj = Event(**ev)
+                # Cek duplikat sebelum masuk queue
+                if dedup_store.is_duplicate(event_obj):
+                    duplicate_count += 1
+                    continue
                 await consumer.queue.put(event_obj)
                 event_objs.append(event_obj)
 
-            logger.info(f"Queued {len(event_objs)} events for processing")
-            
-            return {"status": "queued", "queued_count": len(event_objs)}
-            
+            if duplicate_count == len(batch):
+                # Semua event duplikat
+                return JSONResponse(status_code=409, content={"detail": "Duplicate event(s) detected"})
+            elif duplicate_count > 0:
+                return {"status": "queued", "queued_count": len(event_objs), "duplicate_count": duplicate_count}
+            else:
+                return {"status": "queued", "queued_count": len(event_objs)}
+
         except HTTPException:
             raise
         except Exception as e:
@@ -127,7 +136,7 @@ def create_app(consumer: Consumer, dedup_store: DedupStore, start_time: datetime
             logger.error("Error in get_events endpoint: %s", e, exc_info=True)
             raise HTTPException(status_code=500, detail=f"Failed to retrieve events: {e}")
     
-    @app.get("/stats", tags=["Monitoring"])
+    @app.get("/stats")
     async def get_stats(request: Request):
         """
         Get aggregator statistics and metrics.
@@ -147,6 +156,7 @@ def create_app(consumer: Consumer, dedup_store: DedupStore, start_time: datetime
                 raise HTTPException(status_code=503, detail="Service not ready: dedup_store not initialized")
             
             stats = dedup_store.get_stats()
+            stats["uptime"] = str(datetime.utcnow() - request.app.state.start_time)
             
             return stats
             
@@ -167,7 +177,7 @@ def create_app(consumer: Consumer, dedup_store: DedupStore, start_time: datetime
             timestamp=datetime.utcnow().isoformat() + 'Z'
         )
     
-    # Add asyncio import for to_thread
+    
     import asyncio
     
     return app

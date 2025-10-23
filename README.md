@@ -99,7 +99,7 @@ docker run -p 8080:8080 -v %cd%/data:/app/data uts-aggregator
 
 **Catatan**: Volume mount `-v %cd%/data:/app/data` memastikan persistensi data setelah restart container.
 
-### Cara 2: Menggunakan Docker Compose (BONUS)
+### Cara 2: Menggunakan Docker Compose
 
 #### Build & Run Semua Services
 ```bash

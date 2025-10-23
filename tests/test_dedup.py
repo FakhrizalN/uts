@@ -22,7 +22,10 @@ def temp_db():
 @pytest.fixture
 def dedup_store(temp_db):
     """Create DedupStore instance with temporary database"""
-    return DedupStore(temp_db)
+    store = DedupStore(temp_db)
+    yield store
+    # Close connection before cleanup
+    store.close()
 
 
 @pytest.fixture
@@ -45,31 +48,31 @@ def test_store_new_event(dedup_store, sample_event):
 
 def test_store_duplicate_event(dedup_store, sample_event):
     """Test storing duplicate event returns False"""
-    # Store first time
+    
     result1 = dedup_store.store_event(sample_event)
     assert result1 is True
     
-    # Store second time (duplicate)
+    
     result2 = dedup_store.store_event(sample_event)
     assert result2 is False
 
 
 def test_is_duplicate_detection(dedup_store, sample_event):
     """Test duplicate detection method"""
-    # Before storing
+    
     assert dedup_store.is_duplicate(sample_event) is False
     
-    # After storing
+    
     dedup_store.store_event(sample_event)
     assert dedup_store.is_duplicate(sample_event) is True
 
 
 def test_different_topics_not_duplicate(dedup_store, sample_event):
     """Test that same event_id in different topics are not duplicates"""
-    # Store event in first topic
+    
     dedup_store.store_event(sample_event)
     
-    # Create event with same event_id but different topic
+    
     different_topic_event = Event(
         topic="different-topic",
         event_id=sample_event.event_id,
@@ -78,7 +81,7 @@ def test_different_topics_not_duplicate(dedup_store, sample_event):
         payload=sample_event.payload
     )
     
-    # Should not be duplicate (different topic)
+    
     assert dedup_store.is_duplicate(different_topic_event) is False
     result = dedup_store.store_event(different_topic_event)
     assert result is True
@@ -86,10 +89,10 @@ def test_different_topics_not_duplicate(dedup_store, sample_event):
 
 def test_same_topic_different_event_id_not_duplicate(dedup_store, sample_event):
     """Test that different event_ids in same topic are not duplicates"""
-    # Store first event
+    
     dedup_store.store_event(sample_event)
     
-    # Create event with different event_id but same topic
+    
     different_event = Event(
         topic=sample_event.topic,
         event_id="evt-different-67890",
@@ -98,7 +101,7 @@ def test_same_topic_different_event_id_not_duplicate(dedup_store, sample_event):
         payload=sample_event.payload
     )
     
-    # Should not be duplicate (different event_id)
+    
     assert dedup_store.is_duplicate(different_event) is False
     result = dedup_store.store_event(different_event)
     assert result is True
@@ -106,11 +109,11 @@ def test_same_topic_different_event_id_not_duplicate(dedup_store, sample_event):
 
 def test_multiple_duplicates(dedup_store, sample_event):
     """Test handling multiple duplicate submissions"""
-    # Store original
+    
     result1 = dedup_store.store_event(sample_event)
     assert result1 is True
     
-    # Try storing duplicates multiple times
+    
     for i in range(5):
         result = dedup_store.store_event(sample_event)
         assert result is False, f"Duplicate {i+1} should return False"
@@ -118,7 +121,7 @@ def test_multiple_duplicates(dedup_store, sample_event):
 
 def test_get_stats_after_dedup(dedup_store, sample_event):
     """Test statistics after storing with duplicates"""
-    # Store 3 unique events and 2 duplicates
+    
     event1 = sample_event
     event2 = Event(
         topic="topic2",
@@ -135,17 +138,19 @@ def test_get_stats_after_dedup(dedup_store, sample_event):
         payload={}
     )
     
-    dedup_store.store_event(event1)  # Unique
-    dedup_store.store_event(event2)  # Unique
-    dedup_store.store_event(event1)  # Duplicate
-    dedup_store.store_event(event3)  # Unique
-    dedup_store.store_event(event2)  # Duplicate
+    dedup_store.store_event(event1)  
+    dedup_store.store_event(event2)  
+    dedup_store.store_event(event1)  
+    dedup_store.store_event(event3)  
+    dedup_store.store_event(event2)  
     
-    unique_count, topics = dedup_store.get_stats()
+    stats = dedup_store.get_stats()
+    unique_count = stats["unique_processed"]
+    topics = stats["topics"]
     
-    # Should have 3 unique events
+    
     assert unique_count == 3
     
-    # Should have 3 unique topics
+    
     assert len(topics) == 3
     assert set(topics) == {"test-topic", "topic2", "topic3"}

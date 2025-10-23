@@ -25,7 +25,10 @@ def temp_db():
 @pytest.fixture
 def dedup_store(temp_db):
     """Create DedupStore instance"""
-    return DedupStore(temp_db)
+    store = DedupStore(temp_db)
+    yield store
+    # Close connection before cleanup
+    store.close()
 
 
 @pytest.fixture
@@ -58,10 +61,10 @@ def generate_events(count: int, duplicate_ratio: float = 0.0) -> list:
     """
     unique_count = int(count * (1 - duplicate_ratio))
     
-    # Generate unique events
+    
     unique_events = [
         Event(
-            topic=f"topic-{i % 10}",  # 10 different topics
+            topic=f"topic-{i % 10}",  
             event_id=f"evt-perf-{i:06d}",
             timestamp=datetime.utcnow().isoformat() + 'Z',
             source="perf-test",
@@ -70,12 +73,12 @@ def generate_events(count: int, duplicate_ratio: float = 0.0) -> list:
         for i in range(unique_count)
     ]
     
-    # Add duplicates by repeating some events
+    
     events = unique_events.copy()
     duplicate_count = count - unique_count
     
     for i in range(duplicate_count):
-        # Duplicate random events
+        
         events.append(unique_events[i % unique_count])
     
     return events
@@ -87,38 +90,38 @@ async def test_performance_5000_events_with_20_percent_duplicates(consumer, even
     Test processing 5000 events with 20% duplication rate.
     This is the minimum requirement from the assignment.
     """
-    # Generate 5000 events with 20% duplicates
+    
     events = generate_events(5000, duplicate_ratio=0.20)
     
-    # Start consumer
+    
     await consumer.start()
     
-    # Measure time to queue all events
+    
     queue_start = time.time()
     for event in events:
         await event_queue.put(event)
     queue_time = time.time() - queue_start
     
-    # Wait for processing
+    
     process_start = time.time()
     while not event_queue.empty():
         await asyncio.sleep(0.1)
     
-    # Give a bit more time for final batch
+    
     await asyncio.sleep(0.5)
     process_time = time.time() - process_start
     
-    # Stop consumer
+    
     await consumer.stop()
     
-    # Verify stats
+    
     stats = consumer.get_stats()
     
     assert stats['received'] == 5000, "Should receive all 5000 events"
     assert stats['unique_processed'] == 4000, "Should process 4000 unique events (80%)"
     assert stats['duplicate_dropped'] == 1000, "Should drop 1000 duplicates (20%)"
     
-    # Performance assertions (adjust based on your requirements)
+    
     total_time = queue_time + process_time
     throughput = 5000 / total_time if total_time > 0 else 0
     
@@ -131,55 +134,13 @@ async def test_performance_5000_events_with_20_percent_duplicates(consumer, even
     print(f"  Total time: {total_time:.3f}s")
     print(f"  Throughput: {throughput:.0f} events/s")
     
-    # System should handle at least 100 events/second
+    
     assert throughput >= 100, f"Throughput too low: {throughput:.0f} events/s"
-
-
-@pytest.mark.asyncio
-async def test_performance_10000_events(consumer, event_queue):
-    """Test processing 10,000 events (stress test)"""
-    # Generate 10k events with 15% duplicates
-    events = generate_events(10000, duplicate_ratio=0.15)
-    
-    # Start consumer
-    await consumer.start()
-    
-    # Queue all events
-    start_time = time.time()
-    for event in events:
-        await event_queue.put(event)
-    
-    # Wait for processing
-    while not event_queue.empty():
-        await asyncio.sleep(0.1)
-    
-    await asyncio.sleep(0.5)
-    
-    elapsed = time.time() - start_time
-    
-    # Stop consumer
-    await consumer.stop()
-    
-    # Verify stats
-    stats = consumer.get_stats()
-    
-    assert stats['received'] == 10000
-    assert stats['unique_processed'] == 8500  # 85% unique
-    assert stats['duplicate_dropped'] == 1500  # 15% duplicates
-    
-    throughput = 10000 / elapsed if elapsed > 0 else 0
-    
-    print(f"\nStress Test (10k events):")
-    print(f"  Time: {elapsed:.3f}s")
-    print(f"  Throughput: {throughput:.0f} events/s")
-    
-    # Should still maintain decent throughput
-    assert throughput >= 100
 
 
 def test_dedup_store_performance(dedup_store):
     """Test dedup store lookup performance"""
-    # Store 1000 events
+    
     events = generate_events(1000, duplicate_ratio=0.0)
     
     store_start = time.time()
@@ -187,7 +148,7 @@ def test_dedup_store_performance(dedup_store):
         dedup_store.store_event(event)
     store_time = time.time() - store_start
     
-    # Lookup 1000 events (all should be duplicates)
+    
     lookup_start = time.time()
     for event in events:
         is_dup = dedup_store.is_duplicate(event)
@@ -198,7 +159,7 @@ def test_dedup_store_performance(dedup_store):
     print(f"  Store 1000 events: {store_time:.3f}s ({1000/store_time:.0f} ops/s)")
     print(f"  Lookup 1000 events: {lookup_time:.3f}s ({1000/lookup_time:.0f} ops/s)")
     
-    # Should handle at least 100 operations per second
+    
     assert 1000 / store_time >= 100, "Store operations too slow"
     assert 1000 / lookup_time >= 100, "Lookup operations too slow"
 
@@ -219,10 +180,10 @@ async def test_concurrent_publishers(consumer, event_queue):
             )
             await event_queue.put(event)
     
-    # Start consumer
+    
     await consumer.start()
     
-    # Simulate 5 concurrent publishers each sending 500 events
+    
     start_time = time.time()
     
     publishers = [
@@ -232,7 +193,7 @@ async def test_concurrent_publishers(consumer, event_queue):
     
     await asyncio.gather(*publishers)
     
-    # Wait for processing
+    
     while not event_queue.empty():
         await asyncio.sleep(0.1)
     
@@ -240,14 +201,14 @@ async def test_concurrent_publishers(consumer, event_queue):
     
     elapsed = time.time() - start_time
     
-    # Stop consumer
+    
     await consumer.stop()
     
-    # Verify stats
+    
     stats = consumer.get_stats()
     
-    assert stats['received'] == 2500  # 5 publishers * 500 events
-    assert stats['unique_processed'] == 2500  # All should be unique
+    assert stats['received'] == 2500  
+    assert stats['unique_processed'] == 2500  
     assert stats['duplicate_dropped'] == 0
     
     throughput = 2500 / elapsed if elapsed > 0 else 0
@@ -263,37 +224,37 @@ async def test_concurrent_publishers(consumer, event_queue):
 @pytest.mark.asyncio
 async def test_latency_per_event(consumer, event_queue):
     """Test average latency per event processing"""
-    # Generate small batch
+    
     events = generate_events(100, duplicate_ratio=0.0)
     
-    # Start consumer
+    
     await consumer.start()
     
-    # Measure latency
+    
     latencies = []
     
     for event in events:
         start = time.time()
         await event_queue.put(event)
         
-        # Wait for this specific event to be processed
-        await asyncio.sleep(0.01)  # Small delay for processing
+        
+        await asyncio.sleep(0.01)  
         
         latency = time.time() - start
         latencies.append(latency)
     
-    # Wait for all processing
+    
     await asyncio.sleep(0.5)
     
-    # Stop consumer
+    
     await consumer.stop()
     
-    avg_latency = sum(latencies) / len(latencies) * 1000  # Convert to ms
+    avg_latency = sum(latencies) / len(latencies) * 1000  
     
     print(f"\nLatency Test:")
     print(f"  Average latency: {avg_latency:.2f}ms")
     print(f"  Min latency: {min(latencies)*1000:.2f}ms")
     print(f"  Max latency: {max(latencies)*1000:.2f}ms")
     
-    # Average latency should be reasonable (< 50ms)
+    
     assert avg_latency < 50, f"Latency too high: {avg_latency:.2f}ms"

@@ -43,7 +43,7 @@ class Consumer:
         self.running = False
         self._task: Optional[asyncio.Task] = None
         
-        # Statistics
+        
         self.stats = {
             'received': 0,
             'unique_processed': 0,
@@ -67,7 +67,7 @@ class Consumer:
         
         self.running = False
         if self._task:
-            # Wait for current batch to finish
+            
             await self._task
         logger.info("Consumer stopped")
     
@@ -77,10 +77,10 @@ class Consumer:
         
         while self.running or not self.queue.empty():
             try:
-                # Process events in batches for better performance
+                
                 batch = []
                 
-                # Collect batch
+                
                 for _ in range(self.batch_size):
                     try:
                         event = self.queue.get_nowait()
@@ -91,7 +91,7 @@ class Consumer:
                 if batch:
                     await self._process_batch(batch)
                 else:
-                    # Queue is empty, sleep briefly
+                    
                     await asyncio.sleep(self.sleep_interval)
                     
             except Exception as e:
@@ -107,8 +107,32 @@ class Consumer:
         Args:
             events: List of events to process
         """
+        # Process events synchronously in batch for better performance
         for event in events:
-            await self._process_event(event)
+            try:
+                self.stats['received'] += 1
+                
+                # Direct synchronous call for better performance in tight loop
+                is_new = self.dedup_store.store_event(event)
+                
+                if is_new:
+                    self.stats['unique_processed'] += 1
+                    logger.debug(
+                        f"Processed new event: {event.get_dedup_key()} "
+                        f"from topic '{event.topic}'"
+                    )
+                else:
+                    self.stats['duplicate_dropped'] += 1
+                    logger.info(
+                        f"Dropped duplicate event: {event.get_dedup_key()} "
+                        f"from topic '{event.topic}'"
+                    )
+                    
+            except Exception as e:
+                logger.error(
+                    f"Error processing event {event.get_dedup_key()}: {e}",
+                    exc_info=True
+                )
     
     async def _process_event(self, event: Event):
         """
@@ -120,9 +144,8 @@ class Consumer:
         try:
             self.stats['received'] += 1
             
-            # Store event in dedup store (atomic operation)
-            # Returns True if newly stored, False if duplicate
-            is_new = await asyncio.to_thread(self.dedup_store.store_event, event)
+            # Direct synchronous call
+            is_new = self.dedup_store.store_event(event)
             
             if is_new:
                 self.stats['unique_processed'] += 1

@@ -1,7 +1,6 @@
 version: '3.8'
 
 services:
-  # Main aggregator service
   aggregator:
     build:
       context: .
@@ -20,7 +19,6 @@ services:
       - aggregator_data:/app/data
     networks:
       - aggregator_network
-    restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
       interval: 30s
@@ -28,7 +26,6 @@ services:
       retries: 3
       start_period: 10s
 
-  # Publisher simulator service (BONUS)
   publisher:
     build:
       context: .
