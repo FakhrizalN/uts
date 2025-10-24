@@ -999,7 +999,7 @@ CMD ["python", "-m", "src.main"]
 - **Size Optimization**: Multi-stage build mengurangi final image size
 - **Dependency Caching**: `requirements.txt` copied first untuk better caching
 
-**Docker Compose (BONUS):**
+**Docker Compose:**
 
 ```yaml
 version: '3.8'
@@ -1215,7 +1215,7 @@ pytest /test_performance.py -v
 - Coverage: dedup, idempotency, persistence, API, performance
 - All  passing
 
-**Docker Compose (BONUS):**
+**Docker Compose:**
 - Multi-service orchestration
 - Publisher simulator untuk automated testing
 - Internal networking
@@ -1255,12 +1255,4 @@ pytest /test_performance.py -v
 ## 7. Referensi
 
 Tanenbaum, A. S., & Van Steen, M. (2017). *Distributed systems: Principles and paradigms* (3rd ed.). Pearson Education.
-
-- **Bab 1**: Karakteristik sistem terdistribusi, trade-offs, transparency
-- **Bab 2**: Architectural styles (client-server vs publish-subscribe)
-- **Bab 3**: Komunikasi, RPC, message-oriented communication, delivery semantics
-- **Bab 4**: Naming systems, flat naming, structured naming
-- **Bab 5**: Clock synchronization, logical clocks (Lamport, Vector), ordering
-- **Bab 6**: Fault tolerance, failure models, reliability, recovery
-- **Bab 7**: Consistency models (strong, eventual), replication, idempotency
 
