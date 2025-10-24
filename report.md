@@ -9,18 +9,6 @@
 
 ---
 
-## Daftar Isi
-
-1. [Ringkasan Sistem](#1-ringkasan-sistem)
-2. [Bagian Teori (40%)](#2-bagian-teori-40)
-3. [Bagian Implementasi (60%)](#3-bagian-implementasi-60)
-4. [Hasil Testing](#4-hasil-testing)
-5. [Analisis Performa](#5-analisis-performa)
-6. [Kesimpulan](#6-kesimpulan)
-7. [Referensi](#7-referensi)
-
----
-
 ## 1. Ringkasan Sistem
 
 ### 1.1 Gambaran Umum
@@ -87,7 +75,7 @@ Sistem yang dibangun adalah layanan **Pub-Sub Log Aggregator** berbasis Python d
 
 ---
 
-## 2. Bagian Teori (40%)
+## 2. Bagian Teori
 
 ### T1: Karakteristik Sistem Terdistribusi dan Trade-off Pub-Sub (Bab 1)
 
@@ -113,9 +101,9 @@ Desain ini mengikuti prinsip **loose coupling** dalam sistem terdistribusi diman
 
 | Aspek | Client-Server | Publish-Subscribe | Pilihan untuk Log Aggregator |
 |-------|---------------|-------------------|------------------------------|
-| **Coupling** | Tight coupling | Loose coupling | ✅ Pub-Sub (loose coupling) |
-| **Scalability** | Terbatas (1:1) | Tinggi (1:N) | ✅ Pub-Sub (multiple publishers) |
-| **Fault Tolerance** | Synchronous blocking | Asynchronous, buffered | ✅ Pub-Sub (queue buffer) |
+| **Coupling** | Tight coupling | Loose coupling | Pub-Sub (loose coupling) |
+| **Scalability** | Terbatas (1:1) | Tinggi (1:N) | Pub-Sub (multiple publishers) |
+| **Fault Tolerance** | Synchronous blocking | Asynchronous, buffered | Pub-Sub (queue buffer) |
 | **Ordering** | Sequential per connection | Eventual ordering | Depends on use case |
 | **Complexity** | Lebih simple | Lebih kompleks | Trade-off acceptable |
 
@@ -198,8 +186,8 @@ Event ID harus memenuhi properties:
 
 | Method | Format | Pros | Cons | Suitable? |
 |--------|--------|------|------|-----------|
-| UUID v4 | `123e4567-e89b-12d3-a456-426614174000` | Globally unique, 128-bit randomness | Large (36 chars), tidak sortable | ✅ Yes |
-| ULID | `01ARZ3NDEKTSV4RRFFQ69G5FAV` | Sortable (timestamp prefix), unique | Perlu library | ✅ Yes |
+| UUID v4 | `123e4567-e89b-12d3-a456-426614174000` | Globally unique, 128-bit randomness | Large (36 chars), tidak sortable | Yes |
+| ULID | `01ARZ3NDEKTSV4RRFFQ69G5FAV` | Sortable (timestamp prefix), unique | Perlu library | Yes |
 | Hash-based | `sha256(source+timestamp+counter)` | Deterministic, customizable | Collision risk (perlu salt) | ⚠️ Conditional |
 | Sequential | `evt-1`, `evt-2`, ... | Simple, sortable | Tidak distributed-safe (race) | ❌ No |
 
@@ -470,7 +458,7 @@ Dedup store persisten adalah key recovery mechanism. Setelah crash:
 
 **Testing Failure Scenarios:**
 
-Dalam unit tests (`test_persistence.py`), simulasi restart:
+Dalam unit  (`test_persistence.py`), simulasi restart:
 
 ```python
 def test_persistence_after_restart():
@@ -780,7 +768,7 @@ Metrics ini memungkinkan:
 
 ---
 
-## 3. Bagian Implementasi (60%)
+## 3. Bagian Implementasi
 
 ### 3.1 Arsitektur Kode
 
@@ -1040,41 +1028,51 @@ Publisher simulator otomatis mengirim events dengan 20% duplicate rate untuk tes
 
 ### 4.1 Test Coverage
 
-Total **10 unit tests** across 5 test files:
+Total **10 unit ** across 5 test files:
 
 | Test File | Tests | Coverage |
 |-----------|-------|----------|
-| `test_dedup.py` | 8 tests | Deduplication logic |
-| `test_idempotency.py` | 6 tests | Idempotent processing |
-| `test_persistence.py` | 7 tests | Restart scenarios |
-| `test_api.py` | 14 tests | API endpoints |
-| `test_performance.py` | 7 tests | Performance & stress |
-| **Total** | **42 tests** | **Comprehensive** |
+| `test_dedup.py` | 7  | Deduplication logic |
+| `test_idempotency.py` | 5  | Idempotent processing |
+| `test_persistence.py` | 6  | Restart scenarios |
+| `test_api.py` | 11  | API endpoints |
+| `test_performance.py` | 4  | Performance & stress |
+| **Total** | **33 ** | **Comprehensive** |
 
 ### 4.2 Key Test Results
 
 **1. Deduplication Accuracy:**
 ```
+test_store_new_event PASSED
 test_store_duplicate_event PASSED
 test_is_duplicate_detection PASSED
 test_different_topics_not_duplicate PASSED
+test_same_topic_different_event_id_not_duplicate PASSED
 test_multiple_duplicates PASSED
+test_get_stats_after_dedup PASSED 
 ```
-✅ **Result**: 100% duplicate detection rate
+**Result**: 100% duplicate detection rate
 
 **2. Idempotency:**
 ```
+test_consumer_processes_unique_events PASSED
 test_consumer_drops_duplicates PASSED
 test_idempotency_with_interleaved_duplicates PASSED
+test_consumer_graceful_stop_processes_remaining PASSED
+test_consumer_handles_same_event_id_different_topics PASSED
 ```
-✅ **Result**: Duplicate events correctly dropped
+**Result**: Duplicate events correctly dropped
 
 **3. Persistence:**
 ```
 test_persistence_after_restart PASSED
+test_persistence_is_duplicate_check PASSED
+test_persistence_get_events_after_restart PASSED
+test_persistence_topics_after_restart PASSED
 test_persistence_multiple_restarts PASSED
+test_persistence_with_payload_changes PASSED
 ```
-✅ **Result**: Dedup state survives restarts
+**Result**: Dedup state survives restarts
 
 **4. Performance (5000 events, 20% duplicates):**
 ```
@@ -1084,10 +1082,35 @@ Performance Metrics:
   Total events: 5000
   Unique: 4000
   Duplicates: 1000
-  Total time: 4.2s
-  Throughput: 1190 events/s
+  Queue time: 0.014s
+  Process time: 1.462s
+  Total time: 1.477s
+  Throughput: 3386 events/s
+
+test_dedup_store_performance PASSED
+
+Dedup Store Performance:
+  Store 1000 events: 0.329s (3035 ops/s)
+  Lookup 1000 events: 0.015s (67321 ops/s)
+
+test_concurrent_publishers PASSED
+
+Concurrent Publishers Test:
+  Publishers: 5
+  Events per publisher: 500
+  Total: 2500
+  Time: 1.251s
+  Throughput: 1999 events/s
+
+test_latency_per_event PASSED
+
+Latency Test:
+  Average latency: 0.57ms
+  Min latency: 0.00ms
+  Max latency: 2.04ms
+
 ```
-✅ **Result**: Exceeds 1000 events/s target
+**Result**: Exceeds 1000 events/s target
 
 **5. API Endpoints:**
 ```
@@ -1096,19 +1119,19 @@ test_get_events_filtered_by_topic PASSED
 test_get_stats PASSED
 test_stats_consistency PASSED
 ```
-✅ **Result**: All endpoints functional
+**Result**: All endpoints functional
 
 ### 4.3 Run Tests
 
 ```bash
-# Run all tests
-pytest tests/ -v
+# Run all 
+pytest / -v
 
 # Run with coverage
-pytest tests/ --cov=src --cov-report=html
+pytest / --cov=src --cov-report=html
 
 # Run specific category
-pytest tests/test_performance.py -v
+pytest /test_performance.py -v
 ```
 
 ---
@@ -1175,24 +1198,24 @@ pytest tests/test_performance.py -v
 
 ### 6.1 Pencapaian
 
-✅ **Fungsionalitas Lengkap:**
+**Fungsionalitas Lengkap:**
 - Pub-Sub pattern dengan decoupled components
 - Idempotent consumer dengan 100% dedup accuracy
 - Persistent dedup store tahan restart
 - RESTful API dengan validasi schema
 - Docker containerization dengan security best practices
 
-✅ **Performance:**
-- Throughput: 1,190 events/s (exceeds requirement)
+**Performance:**
+- Throughput: 3,386 events/s (exceeds requirement)
 - Latency: <100ms p99
 - Memory: <256 MB (efficient)
 
-✅ **Testing:**
-- 42 unit tests (exceeds 5-10 requirement)
+**Testing:**
+- 33 unit  (exceeds 5-10 requirement)
 - Coverage: dedup, idempotency, persistence, API, performance
-- All tests passing
+- All  passing
 
-✅ **Docker Compose (BONUS):**
+**Docker Compose (BONUS):**
 - Multi-service orchestration
 - Publisher simulator untuk automated testing
 - Internal networking
@@ -1241,10 +1264,3 @@ Tanenbaum, A. S., & Van Steen, M. (2017). *Distributed systems: Principles and p
 - **Bab 6**: Fault tolerance, failure models, reliability, recovery
 - **Bab 7**: Consistency models (strong, eventual), replication, idempotency
 
----
-
-**Catatan Akhir**: Laporan ini mendemonstrasikan implementasi lengkap Pub-Sub log aggregator dengan strong theoretical foundation (Bab 1-7) dan practical implementation yang reliable, performant, dan production-ready (dengan enhancements). Sistem ini menunjukkan trade-offs yang informed antara consistency, availability, dan partition tolerance sesuai CAP theorem.
-
----
-
-*Dibuat untuk UTS Sistem Terdistribusi - Oktober 2025*
