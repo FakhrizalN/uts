@@ -4,15 +4,15 @@
 Layanan Pub-Sub log aggregator dengan idempotent consumer dan deduplication yang berjalan dalam Docker container. Sistem ini menerima event/log dari publisher dan memproses melalui subscriber yang bersifat idempotent, mencegah pemrosesan ulang event yang sama.
 
 ## Fitur Utama
-- ✅ Idempotent consumer untuk mencegah duplikasi pemrosesan
-- ✅ Deduplication store persisten (SQLite)
-- ✅ At-least-once delivery semantics
-- ✅ Toleransi kegagalan dengan persistensi data
-- ✅ API RESTful untuk publish dan query events
-- ✅ Statistik dan monitoring real-time
-- ✅ Unit tests komprehensif (>5 tests)
-- ✅ Docker container support
-- ✅ Docker Compose untuk multi-service orchestration (BONUS)
+- Idempotent consumer untuk mencegah duplikasi pemrosesan
+- Deduplication store persisten (SQLite)
+- At-least-once delivery semantics
+- Toleransi kegagalan dengan persistensi data
+- API RESTful untuk publish dan query events
+- Statistik dan monitoring real-time
+- Unit tests komprehensif (>5 tests)
+- Docker container support
+- Docker Compose untuk multi-service orchestration (BONUS)
 
 ## Arsitektur Sistem
 
